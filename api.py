@@ -41,7 +41,7 @@ tf.flags.DEFINE_string(
 )
 
 tf.flags.DEFINE_string(
-    "metadata_file",
+    " ",
     METADATA_DIR,
     "Metadata file for embedding visualization"
     "(Each line is a word segment in metadata_file).",
@@ -293,6 +293,10 @@ def test(word2vec_path):
                 logger.info("✔︎ Writing to {0}\n".format(out_dir))
 
             checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
+
+            # Summaries for loss
+            loss_summary = tf.summary.scalar("loss", cnn.loss)
+
             validation_summary_op = tf.summary.merge([loss_summary])
 
             if FLAGS.train_or_restore == "R":
