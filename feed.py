@@ -1,5 +1,5 @@
 import os
-import json
+import utils
 import numpy as np
 import gensim.models.keyedvectors as word2vec
 
@@ -36,37 +36,35 @@ def data_word2vec_one_label(input_file,
                       "Please preprocess the research data into the "
                       "json file.")
 
-    with open(input_file) as fin:
-        raw_tokens_list_gov = []
-        raw_tokens_list_art = []
-        test_id_list = []
-        content_index_list_gov = []
-        content_index_list_art = []
-        # labels_list = []
-        onehot_labels_list = []
-        labels_num_list = []
-        total_line = 0
+    raw_tokens_list_gov = []
+    raw_tokens_list_art = []
+    test_id_list = []
+    content_index_list_gov = []
+    content_index_list_art = []
+    # labels_list = []
+    onehot_labels_list = []
+    labels_num_list = []
+    total_line = 0
 
-        for each_line in fin:
-            data = json.loads(each_line)
-            test_id = data['testid']
-            features_content_gov = data['gov']
-            features_content_art = data['art']
-            label = data['label']
+    data = utils.load_pickle(input_file)
+    test_id = data['testid']
+    features_content_gov = data['gov']
+    features_content_art = data['art']
+    label = data['label']
 
-            test_id_list.append(test_id)
-            content_index_list_gov.append(_token_to_index(
-                features_content_gov))
-            content_index_list_art.append(_token_to_index(
-                features_content_art))
+    test_id_list.append(test_id)
+    content_index_list_gov.append(_token_to_index(
+        features_content_gov))
+    content_index_list_art.append(_token_to_index(
+        features_content_art))
 
-            raw_tokens_list_gov.append(features_content_gov)
-            raw_tokens_list_art.append(features_content_art)
+    raw_tokens_list_gov.append(features_content_gov)
+    raw_tokens_list_art.append(features_content_art)
 
-            onehot_labels_list.append(label)
-            labels_num = 1
-            labels_num_list.append(labels_num)
-            total_line += 1
+    onehot_labels_list.append(label)
+    labels_num = 1
+    labels_num_list.append(labels_num)
+    total_line += 1
 
     class _Data:
         def __init__(self):
@@ -108,8 +106,6 @@ def data_word2vec_one_label(input_file,
 
 
 def load_data_and_labels_one_label(data_file,
-                                   num_labels,
-                                   embedding_size,
                                    word2vec_path,
                                    use_pretrain=True):
     """
