@@ -1,4 +1,5 @@
 import os
+import pickle
 import logging
 
 
@@ -69,3 +70,9 @@ def count_correct_pred(prediction, batch_labels):
            count_correct_one, \
            count_correct_zero, \
            TFPN
+
+
+def load_pickle(pickle_path):
+    with open(pickle_path, "rb") as f:
+        python_obj = pickle.load(f)
+    return python_obj
