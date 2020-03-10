@@ -293,6 +293,7 @@ def test(word2vec_path):
                 logger.info("✔︎ Writing to {0}\n".format(out_dir))
 
             checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
+            validation_summary_op = tf.summary.merge([loss_summary])
 
             if FLAGS.train_or_restore == "R":
                 # Load cnn model
@@ -307,6 +308,101 @@ def test(word2vec_path):
 
             current_step = sess.run(cnn.global_step)
             print("current_step: ", current_step)
+
+            def validation_step(
+                _x_val_testid, _x_val_gov, _x_val_art, _y_val, writer=None
+            ):
+                print("_x_val_gov: ", len(_x_val_gov), _x_val_gov)
+
+                print("_x_val_art: ", len(_x_val_art))
+                """Evaluates model on a validation set"""
+                batches_validation = feed.batch_iter(
+                    list(zip(_x_val_testid, _x_val_gov, _x_val_art, _y_val)),
+                    FLAGS.batch_size,
+                    num_epochs=1,
+                    shuffle=False,
+                )
+
+                valid_count_correct_one = 0
+                valid_count_label_one = 0
+                valid_count_correct_zero = 0
+                valid_count_label_zero = 0
+
+                valid_step_count = 0
+                for batch_validation in batches_validation:
+                    print(valid_step_count)
+
+                    x_val_testid, x_batch_val_gov, x_batch_val_art, y_batch_val = zip(
+                        *batch_validation
+                    )
+
+                    art = x_val_testid[0].split("_")[-1].split(" ")[-1]
+
+                    if len(art) >= 3:
+                        if art[0:3] == "III":
+                            if y_batch_val[0][0] > 0:
+
+                                feed_dict = {
+                                    cnn.input_x_gov: x_batch_val_gov,
+                                    cnn.input_x_art: x_batch_val_art,
+                                    cnn.input_y: y_batch_val,
+                                    cnn.dropout_keep_prob: 1.0,
+                                    cnn.is_training: False,
+                                }
+                                (
+                                    step,
+                                    summaries,
+                                    scores,
+                                    grad_cam_c_gov,
+                                    grad_cam_c_art,
+                                    cur_loss,
+                                    input_y,
+                                ) = sess.run(
+                                    [
+                                        cnn.global_step,
+                                        validation_summary_op,
+                                        cnn.scores,
+                                        cnn.grad_cam_c_gov,
+                                        cnn.grad_cam_c_art,
+                                        cnn.loss,
+                                        cnn.input_y,
+                                    ],
+                                    feed_dict,
+                                )
+
+                            else:
+                                pass
+
+                    valid_step_count += 1
+
+                logger.info(
+                    "[VALID_FINAL] Total Correct One Answer is {} out "
+                    "of {}".format(valid_count_correct_one, valid_count_label_one)
+                )
+                logger.info(
+                    "[VALID_FINAL] Total Correct Zero Answer is {} "
+                    "out of {}".format(valid_count_correct_zero, valid_count_label_zero)
+                )
+
+                return (
+                    scores,
+                    grad_cam_c_gov,
+                    grad_cam_c_art,
+                )
+
+            logger.info("\nEvaluation:")
+
+            (
+                scores,
+                grad_cam_c_gov,
+                grad_cam_c_art,
+            ) = validation_step(
+                x_val_testid,
+                x_val_gov,
+                x_val_art,
+                y_val,
+                writer=None,
+            )
 
     logger.info("✔︎ Done.")
 
