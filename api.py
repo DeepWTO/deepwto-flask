@@ -309,7 +309,7 @@ def test(word2vec_path):
             current_step = sess.run(cnn.global_step)
             print("current_step: ", current_step)
 
-            def validation_step(
+            def infer(
                 _x_val_testid, _x_val_gov, _x_val_art, _y_val, writer=None
             ):
                 print("_x_val_gov: ", len(_x_val_gov), _x_val_gov)
@@ -396,7 +396,7 @@ def test(word2vec_path):
                 scores,
                 grad_cam_c_gov,
                 grad_cam_c_art,
-            ) = validation_step(
+            ) = infer(
                 x_val_testid,
                 x_val_gov,
                 x_val_art,
