@@ -31,20 +31,12 @@ if TRAIN_OR_RESTORE == "T":
 if TRAIN_OR_RESTORE == "R":
     logger = utils.logger_fn("tflog", "logs/restore-{0}.log".format(time.asctime()))
 
-VALIDATIONSET_DIR = "./data/test_data.json"
-METADATA_DIR = "../data/metadata.tsv"
+VALIDATIONSET_DIR = "/home/zachary/139_[Article III:4].pkl"
 
 # Data Parameters
 
 tf.flags.DEFINE_string(
     "validation_data_file", VALIDATIONSET_DIR, "Data source for the validation data."
-)
-
-tf.flags.DEFINE_string(
-    " ",
-    METADATA_DIR,
-    "Metadata file for embedding visualization"
-    "(Each line is a word segment in metadata_file).",
 )
 
 tf.flags.DEFINE_string("train_or_restore", TRAIN_OR_RESTORE, "Train or Restore.")
@@ -107,6 +99,12 @@ tf.flags.DEFINE_integer(
     "batch_size",
     1,
     # 8 for zacbuntu
+    "Batch Size (default: 256)",
+)
+
+tf.flags.DEFINE_string(
+    "checkpoint_model_path",
+    "/home/zachary/1554644075/checkpoints/model-156300",
     "Batch Size (default: 256)",
 )
 
@@ -177,9 +175,8 @@ def test(word2vec_path):
     logger.info("✔︎ Validation data processing...")
     val_data = feed.load_data_and_labels_one_label(
         FLAGS.validation_data_file,
-        FLAGS.num_classes,
-        FLAGS.embedding_dim,
-        word2vec_path=word2vec_path
+        word2vec_path=word2vec_path,
+        use_pretrain=True
     )
 
     logger.info(
@@ -304,11 +301,10 @@ def test(word2vec_path):
                 logger.info("✔︎ Loading model...")
                 print(checkpoint_dir)
                 # checkpoint_file = tf.train.latest_checkpoint(checkpoint_dir)
-                checkpoint_file = "/Users/zachary/deepwto/deepwto-draft/models/cite_wa/OneLabelTextCNN/runs/1554644075/checkpoints/model-156300"
-                logger.info(checkpoint_file)
+                logger.info(FLAGS.checkpoint_model_path)
                 # Load the saved meta graph and restore variables
-                saver = tf.train.import_meta_graph("{0}.meta".format(checkpoint_file))
-                saver.restore(sess, checkpoint_file)
+                saver = tf.train.import_meta_graph("{0}.meta".format(FLAGS.checkpoint_model_path))
+                saver.restore(sess, FLAGS.checkpoint_model_path)
 
             current_step = sess.run(cnn.global_step)
             print("current_step: ", current_step)
@@ -407,6 +403,9 @@ def test(word2vec_path):
                 y_val,
                 writer=None,
             )
+
+            print(scores)
+            print(grad_cam_c_art, len(grad_cam_c_art))
 
     logger.info("✔︎ Done.")
 
