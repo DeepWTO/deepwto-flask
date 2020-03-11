@@ -2,7 +2,6 @@
 __author__ = "Randolph"
 __modify__ = "Zachary"
 
-import os
 import sys
 import time
 import logging
