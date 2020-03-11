@@ -34,11 +34,6 @@ tf.flags.DEFINE_string(
 
 tf.flags.DEFINE_string("train_or_restore", TRAIN_OR_RESTORE, "Train or Restore.")
 
-# Model Hyperparameters
-tf.flags.DEFINE_float("pos_weight", 100000, "Coefficient To prevent False Positive")
-
-tf.flags.DEFINE_float("learning_rate", 0.01, "The learning rate (default: 0.001)")
-
 tf.flags.DEFINE_integer(
     "pad_seq_len_gov",
     35842,
@@ -73,19 +68,7 @@ tf.flags.DEFINE_integer(
     "num_filters", 128, "Number of filters per filter size (default: 128)"
 )
 
-tf.flags.DEFINE_float(
-    "dropout_keep_prob", 0.5, "Dropout keep probability (default: 0.5)"
-)
-
 tf.flags.DEFINE_float("l2_reg_lambda", 0.0, "L2 regularization lambda (default: 0.0)")
-
-tf.flags.DEFINE_integer("num_classes", 1, "Number of labels (depends on the task)")
-
-tf.flags.DEFINE_integer("top_num", 1, "Number of top K prediction classes (default: 5)")
-
-tf.flags.DEFINE_float(
-    "threshold", 0.5, "Threshold for prediction classes (default: 0.5)"
-)
 
 # Training Parameters
 tf.flags.DEFINE_integer(
@@ -99,34 +82,6 @@ tf.flags.DEFINE_string(
     "checkpoint_model_path",
     constants.ckpt_model_path,
     "Batch Size (default: 256)",
-)
-
-tf.flags.DEFINE_integer(
-    "num_epochs", 10000000000, "Number of training epochs (default: 100)"
-)
-
-tf.flags.DEFINE_integer(
-    "evaluate_every",
-    30,
-    "Evaluate model on dev set after this many steps " "(default: 5000)",
-)
-
-tf.flags.DEFINE_float(
-    "norm_ratio",
-    1,
-    "The ratio of the sum of gradients norms of trainable " "variable (default: 1.25)",
-)
-
-tf.flags.DEFINE_integer(
-    "decay_steps", 5000, "how many steps before decay learning rate. " "(default: 500)"
-)
-
-tf.flags.DEFINE_float(
-    "decay_rate", 0.95, "Rate of decay for learning rate. (default: 0.95)"
-)
-
-tf.flags.DEFINE_integer(
-    "checkpoint_every", 60, "Save model after this many steps (default: 1000)"
 )
 
 tf.flags.DEFINE_integer(
@@ -146,18 +101,18 @@ FLAGS = tf.flags.FLAGS
 FLAGS(sys.argv)
 dilim = "-" * 100
 
-# logger.info(
-#     "\n".join(
-#         [
-#             dilim,
-#             *[
-#                 "{0:>50}|{1:<50}".format(attr.upper(), FLAGS.__getattr__(attr))
-#                 for attr in sorted(FLAGS.__dict__["__wrapped"])
-#             ],
-#             dilim,
-#         ]
-#     )
-# )
+logger.info(
+    "\n".join(
+        [
+            dilim,
+            *[
+                "{0:>50}|{1:<50}".format(attr.upper(), FLAGS.__getattr__(attr))
+                for attr in sorted(FLAGS.__dict__["__wrapped"])
+            ],
+            dilim,
+        ]
+    )
+)
 
 
 def test(word2vec_path):
@@ -233,13 +188,13 @@ def test(word2vec_path):
 
             saver = tf.train.Saver(
                 tf.global_variables(), max_to_keep=FLAGS.num_checkpoints
-            )
+            )  # this is required to resolve "tensorflow.python.framework.errors_impl.FailedPreconditionError: Attempting to use uninitialized value Global_Step [[{{node _retval_Global_Step_0_0}}]]"
 
             if FLAGS.train_or_restore == "R":
                 # Load cnn model
                 logger.info("✔︎ Loading model...")
                 # checkpoint_file = tf.train.latest_checkpoint(checkpoint_dir)
-                logger.info("model_path", FLAGS.checkpoint_model_path)
+                # logger.info("model_path", FLAGS.checkpoint_model_path)
                 # Load the saved meta graph and restore variables
                 saver = tf.train.import_meta_graph("{0}.meta".format(FLAGS.checkpoint_model_path))
                 print(FLAGS.checkpoint_model_path)
@@ -299,8 +254,7 @@ def test(word2vec_path):
                         feed_dict,
                     )
 
-                    return (scores, grad_cam_c_gov, grad_cam_c_art)
-
+                    return scores, grad_cam_c_gov, grad_cam_c_art
 
             data = infer(
                 x_val_testid,
