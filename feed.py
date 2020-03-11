@@ -31,10 +31,10 @@ def data_word2vec_one_label(input_file,
             result.append(word2id)
         return result
 
-    if not input_file.endswith('.json'):
-        raise IOError("✘ The research data is not a json file. "
-                      "Please preprocess the research data into the "
-                      "json file.")
+    # if not input_file.endswith('.json'):
+    #     raise IOError("✘ The research data is not a json file. "
+    #                   "Please preprocess the research data into the "
+    #                   "json file.")
 
     raw_tokens_list_gov = []
     raw_tokens_list_art = []

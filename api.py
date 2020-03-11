@@ -13,15 +13,8 @@ import feed
 import utils
 import constants
 
-# Parameters
-# ==================================================
+TRAIN_OR_RESTORE = "R"
 
-TRAIN_OR_RESTORE = input("☛ Train or Restore?(T/R): ")
-
-while not (TRAIN_OR_RESTORE.isalpha() and TRAIN_OR_RESTORE.upper() in ["T", "R"]):
-    TRAIN_OR_RESTORE = input(
-        "✘ The format of your input is illegal, " "please re-input: "
-    )
 logging.info("✔︎ The format of your input is legal, " "now loading to next step...")
 
 TRAIN_OR_RESTORE = TRAIN_OR_RESTORE.upper()
@@ -104,7 +97,7 @@ tf.flags.DEFINE_integer(
 
 tf.flags.DEFINE_string(
     "checkpoint_model_path",
-    "/home/zachary/1554644075/checkpoints/model-156300",
+    constants.ckpt_model_path,
     "Batch Size (default: 256)",
 )
 
@@ -152,18 +145,19 @@ tf.flags.DEFINE_boolean("gpu_options_allow_growth", True, "Allow gpu options gro
 FLAGS = tf.flags.FLAGS
 FLAGS(sys.argv)
 dilim = "-" * 100
-logger.info(
-    "\n".join(
-        [
-            dilim,
-            *[
-                "{0:>50}|{1:<50}".format(attr.upper(), FLAGS.__getattr__(attr))
-                for attr in sorted(FLAGS.__dict__["__wrapped"])
-            ],
-            dilim,
-        ]
-    )
-)
+
+# logger.info(
+#     "\n".join(
+#         [
+#             dilim,
+#             *[
+#                 "{0:>50}|{1:<50}".format(attr.upper(), FLAGS.__getattr__(attr))
+#                 for attr in sorted(FLAGS.__dict__["__wrapped"])
+#             ],
+#             dilim,
+#         ]
+#     )
+# )
 
 
 def test(word2vec_path):
@@ -237,73 +231,18 @@ def test(word2vec_path):
                 pretrained_embedding=pretrained_word2vec_matrix,
             )
 
-            # Define training procedure
-            with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-                learning_rate = tf.train.exponential_decay(
-                    learning_rate=FLAGS.learning_rate,
-                    global_step=cnn.global_step,
-                    decay_steps=FLAGS.decay_steps,
-                    decay_rate=FLAGS.decay_rate,
-                    staircase=True,
-                )
-                optimizer = tf.train.AdamOptimizer(learning_rate)
-                grads, variables = zip(*optimizer.compute_gradients(cnn.loss))
-                grads, _ = tf.clip_by_global_norm(grads, clip_norm=FLAGS.norm_ratio)
-
-            # Keep track of gradient values and sparsity (optional)
-            grad_summaries = []
-            for g, v in zip(grads, variables):
-                if g is not None:
-                    grad_hist_summary = tf.summary.histogram(
-                        "{0}/grad/hist".format(v.name), g
-                    )
-                    sparsity_summary = tf.summary.scalar(
-                        "{0}/grad/sparsity".format(v.name), tf.nn.zero_fraction(g)
-                    )
-                    grad_summaries.append(grad_hist_summary)
-                    grad_summaries.append(sparsity_summary)
-            grad_summaries_merged = tf.summary.merge(grad_summaries)
-
-            # Output directory for models and summaries
-            if FLAGS.train_or_restore == "R":
-                MODEL = input(
-                    "☛ Please input the checkpoints model you want "
-                    "to restore, it should be like(1490175368): "
-                )
-                # The model you want to restore
-
-                while not (MODEL.isdigit() and len(MODEL) == 10):
-                    MODEL = input(
-                        "✘ The format of your input is illegal, " "please re-input: "
-                    )
-                logger.info(
-                    "✔︎ The format of your input is legal, "
-                    "now loading to next step..."
-                )
-                out_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", MODEL))
-                logger.info("✔︎ Writing to {0}\n".format(out_dir))
-            else:
-                timestamp = str(int(time.time()))
-                out_dir = os.path.abspath(
-                    os.path.join(os.path.curdir, "runs", timestamp)
-                )
-                logger.info("✔︎ Writing to {0}\n".format(out_dir))
-
-            checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
-
-            # Summaries for loss
-            loss_summary = tf.summary.scalar("loss", cnn.loss)
-
-            validation_summary_op = tf.summary.merge([loss_summary])
+            saver = tf.train.Saver(
+                tf.global_variables(), max_to_keep=FLAGS.num_checkpoints
+            )
 
             if FLAGS.train_or_restore == "R":
                 # Load cnn model
                 logger.info("✔︎ Loading model...")
-                print(checkpoint_dir)
                 # checkpoint_file = tf.train.latest_checkpoint(checkpoint_dir)
-                logger.info(FLAGS.checkpoint_model_path)
+                logger.info("model_path", FLAGS.checkpoint_model_path)
                 # Load the saved meta graph and restore variables
                 saver = tf.train.import_meta_graph("{0}.meta".format(FLAGS.checkpoint_model_path))
+                print(FLAGS.checkpoint_model_path)
                 saver.restore(sess, FLAGS.checkpoint_model_path)
 
             current_step = sess.run(cnn.global_step)
@@ -323,11 +262,6 @@ def test(word2vec_path):
                     shuffle=False,
                 )
 
-                valid_count_correct_one = 0
-                valid_count_label_one = 0
-                valid_count_correct_zero = 0
-                valid_count_label_zero = 0
-
                 valid_step_count = 0
                 for batch_validation in batches_validation:
                     print(valid_step_count)
@@ -336,67 +270,39 @@ def test(word2vec_path):
                         *batch_validation
                     )
 
-                    art = x_val_testid[0].split("_")[-1].split(" ")[-1]
+                    feed_dict = {
+                        cnn.input_x_gov: x_batch_val_gov,
+                        cnn.input_x_art: x_batch_val_art,
+                        cnn.input_y: y_batch_val,
+                        cnn.dropout_keep_prob: 1.0,
+                        cnn.is_training: False,
+                    }
 
-                    if len(art) >= 3:
-                        if art[0:3] == "III":
-                            if y_batch_val[0][0] > 0:
+                    # print(feed_dict)
 
-                                feed_dict = {
-                                    cnn.input_x_gov: x_batch_val_gov,
-                                    cnn.input_x_art: x_batch_val_art,
-                                    cnn.input_y: y_batch_val,
-                                    cnn.dropout_keep_prob: 1.0,
-                                    cnn.is_training: False,
-                                }
-                                (
-                                    step,
-                                    summaries,
-                                    scores,
-                                    grad_cam_c_gov,
-                                    grad_cam_c_art,
-                                    cur_loss,
-                                    input_y,
-                                ) = sess.run(
-                                    [
-                                        cnn.global_step,
-                                        validation_summary_op,
-                                        cnn.scores,
-                                        cnn.grad_cam_c_gov,
-                                        cnn.grad_cam_c_art,
-                                        cnn.loss,
-                                        cnn.input_y,
-                                    ],
-                                    feed_dict,
-                                )
-
-                            else:
-                                pass
-
-                    valid_step_count += 1
-
-                logger.info(
-                    "[VALID_FINAL] Total Correct One Answer is {} out "
-                    "of {}".format(valid_count_correct_one, valid_count_label_one)
-                )
-                logger.info(
-                    "[VALID_FINAL] Total Correct Zero Answer is {} "
-                    "out of {}".format(valid_count_correct_zero, valid_count_label_zero)
-                )
-
-                return (
+                    [
+                    step,
                     scores,
                     grad_cam_c_gov,
                     grad_cam_c_art,
-                )
+                    cur_loss,
+                    input_y
+                    ] = sess.run(
+                        [
+                            cnn.global_step,
+                            cnn.scores,
+                            cnn.grad_cam_c_gov,
+                            cnn.grad_cam_c_art,
+                            cnn.loss,
+                            cnn.input_y
+                        ],
+                        feed_dict,
+                    )
 
-            logger.info("\nEvaluation:")
+                    return (scores, grad_cam_c_gov, grad_cam_c_art)
 
-            (
-                scores,
-                grad_cam_c_gov,
-                grad_cam_c_art,
-            ) = infer(
+
+            data = infer(
                 x_val_testid,
                 x_val_gov,
                 x_val_art,
@@ -404,10 +310,7 @@ def test(word2vec_path):
                 writer=None,
             )
 
-            print(scores)
-            print(grad_cam_c_art, len(grad_cam_c_art))
-
-    logger.info("✔︎ Done.")
+            print(data)
 
 
 if __name__ == "__main__":
