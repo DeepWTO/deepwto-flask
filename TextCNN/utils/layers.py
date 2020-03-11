@@ -18,7 +18,7 @@ def linear(input_,
         ValueError: if some of the arguments has unspecified or wrong
         shape.
     """
-
+    
     shape = input_.get_shape().as_list()
     if len(shape) != 2:
         raise ValueError("Linear is expecting 2D arguments: {0}".
@@ -27,7 +27,7 @@ def linear(input_,
         raise ValueError("Linear expects shape[1] of arguments: {0}".
                          format(str(shape)))
     input_size = shape[1]
-
+    
     # Now the computation.
     with tf.variable_scope(scope):
         W = tf.get_variable("W",
@@ -36,7 +36,7 @@ def linear(input_,
         b = tf.get_variable("b",
                             [output_size],
                             dtype=input_.dtype)
-
+    
     return tf.nn.xw_plus_b(input_,
                            W,
                            b)
@@ -55,7 +55,7 @@ def highway_layer(input_,
     where g is nonlinearity, t is transform gate, and (1 - t) is
     carry gate.
     """
-
+    
     for idx in range(num_layers):
         g = f(linear(input_,
                      size,
@@ -67,7 +67,7 @@ def highway_layer(input_,
                                      format(idx, gov_or_art))) + bias)
         output = t * g + (1. - t) * input_
         input_ = output
-
+    
     return output
 
 
@@ -106,13 +106,13 @@ def do_cnn(gov_or_art,
                 strides=[1, 1, 1, 1],
                 padding="VALID",
                 name="conv")
-
+            
             conv = tf.nn.bias_add(conv, b)
-
+            
             # Batch Normalization Layer
             conv_bn = tf.layers.batch_normalization(conv,
                                                     training=is_training)
-
+            
             # Apply nonlinearity
             conv_out = tf.nn.relu(conv_bn,
                                   name="relu")
@@ -120,7 +120,7 @@ def do_cnn(gov_or_art,
             print(conv_out)
             # conv_out_squeezed = tf.squeeze(conv_out, [2])
             feature_maps.append(conv_out)
-
+        
         with tf.name_scope("pool-filter{}_{}".format(filter_size,
                                                      gov_or_art)):
             # Maxpooling over the outputs
@@ -130,16 +130,16 @@ def do_cnn(gov_or_art,
                 strides=[1, 1, 1, 1],
                 padding="VALID",
                 name="pool")
-
+        
         pooled_outputs.append(pooled)
-
+    
     # Combine all the pooled features
     num_filters_total = num_filters * len(filter_sizes)
     pool = tf.concat(pooled_outputs,
                      axis=3)
     pool_flat = tf.reshape(pool,
                            shape=[-1, num_filters_total])
-
+    
     # Fully Connected Layer
     with tf.name_scope("fc_{}".format(gov_or_art)):
         W = tf.Variable(tf.truncated_normal(shape=[num_filters_total,
@@ -152,15 +152,15 @@ def do_cnn(gov_or_art,
                                     dtype=tf.float32),
                         name="b")
         fc = tf.nn.xw_plus_b(pool_flat, W, b)
-
+        
         # Batch Normalization Layer
         fc_bn = tf.layers.batch_normalization(fc,
                                               training=is_training)
-
+        
         # Apply nonlinearity
         fc_out = tf.nn.relu(fc_bn,
                             name="relu")
-
+    
     # Highway Layer
     with tf.name_scope("highway_{}".format(gov_or_art)):
         highway = highway_layer(fc_out,
@@ -168,7 +168,7 @@ def do_cnn(gov_or_art,
                                 gov_or_art=gov_or_art,
                                 num_layers=1,
                                 bias=0)
-
+    
     # Add dropout
     with tf.name_scope("dropout_{}".format(gov_or_art)):
         h_drop = tf.nn.dropout(highway,
@@ -198,12 +198,12 @@ def fc_w_nl_bn(name_scope,
             input_tensor,
             W,
             b)
-
+        
         # Batch Normalization Layer
         fc_bn = tf.layers.batch_normalization(
             fc,
             training=is_training)
-
+        
         # Apply nonlinearity
         fc_out = tf.nn.relu(fc_bn,
                             name="relu")

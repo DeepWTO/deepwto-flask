@@ -5,13 +5,25 @@ __modify__ = "Zachary"
 import os
 import sys
 import time
+import pickle
 import logging
+import numpy as np
 import tensorflow as tf
 
+from tensorboard.plugins import projector
 from model import OneLabelTextCNN
-import feed
-import utils
-import constants
+from utils import feed
+from utils.train import count_correct_pred
+
+from sklearn.metrics import (
+    precision_score,
+    recall_score,
+    f1_score,
+    roc_auc_score,
+    average_precision_score,
+)
+
+import matplotlib.pyplot as plt
 
 # Parameters
 # ==================================================
@@ -27,16 +39,24 @@ logging.info("✔︎ The format of your input is legal, " "now loading to next s
 TRAIN_OR_RESTORE = TRAIN_OR_RESTORE.upper()
 
 if TRAIN_OR_RESTORE == "T":
-    logger = utils.logger_fn("tflog", "logs/training-{0}.log".format(time.asctime()))
+    logger = feed.logger_fn("tflog", "logs/training-{0}.log".format(time.asctime()))
 if TRAIN_OR_RESTORE == "R":
-    logger = utils.logger_fn("tflog", "logs/restore-{0}.log".format(time.asctime()))
+    logger = feed.logger_fn("tflog", "logs/restore-{0}.log".format(time.asctime()))
 
-VALIDATIONSET_DIR = "/home/zachary/139_[Article III:4].pkl"
+VALIDATIONSET_DIR = "/home/zachary/tmp/test_data.json"
+METADATA_DIR = "../data/metadata.tsv"
 
 # Data Parameters
 
 tf.flags.DEFINE_string(
     "validation_data_file", VALIDATIONSET_DIR, "Data source for the validation data."
+)
+
+tf.flags.DEFINE_string(
+    "metadata_file",
+    METADATA_DIR,
+    "Metadata file for embedding visualization"
+    "(Each line is a word segment in metadata_file).",
 )
 
 tf.flags.DEFINE_string("train_or_restore", TRAIN_OR_RESTORE, "Train or Restore.")
@@ -99,12 +119,6 @@ tf.flags.DEFINE_integer(
     "batch_size",
     1,
     # 8 for zacbuntu
-    "Batch Size (default: 256)",
-)
-
-tf.flags.DEFINE_string(
-    "checkpoint_model_path",
-    "/home/zachary/1554644075/checkpoints/model-156300",
     "Batch Size (default: 256)",
 )
 
@@ -175,8 +189,10 @@ def test(word2vec_path):
     logger.info("✔︎ Validation data processing...")
     val_data = feed.load_data_and_labels_one_label(
         FLAGS.validation_data_file,
+        FLAGS.num_classes,
+        FLAGS.embedding_dim,
         word2vec_path=word2vec_path,
-        use_pretrain=True
+        data_aug_flag=False,
     )
 
     logger.info(
@@ -204,7 +220,7 @@ def test(word2vec_path):
 
     # Build vocabulary
 
-    VOCAB_SIZE = feed.load_vocab_size(word2vec_path=word2vec_path)
+    VOCAB_SIZE = feed.load_vocab_size(FLAGS.embedding_dim, word2vec_path=word2vec_path)
 
     # Use pretrained W2V
     pretrained_word2vec_matrix = feed.load_word2vec_matrix(
@@ -249,6 +265,9 @@ def test(word2vec_path):
                 optimizer = tf.train.AdamOptimizer(learning_rate)
                 grads, variables = zip(*optimizer.compute_gradients(cnn.loss))
                 grads, _ = tf.clip_by_global_norm(grads, clip_norm=FLAGS.norm_ratio)
+                train_op = optimizer.apply_gradients(
+                    zip(grads, variables), global_step=cnn.global_step, name="train_op"
+                )
 
             # Keep track of gradient values and sparsity (optional)
             grad_summaries = []
@@ -294,22 +313,49 @@ def test(word2vec_path):
             # Summaries for loss
             loss_summary = tf.summary.scalar("loss", cnn.loss)
 
+            # Validation summaries
             validation_summary_op = tf.summary.merge([loss_summary])
+            validation_summary_dir = os.path.join(out_dir, "summaries", "validation")
+            validation_summary_writer = tf.summary.FileWriter(
+                validation_summary_dir, sess.graph
+            )
+
+            saver = tf.train.Saver(
+                tf.global_variables(), max_to_keep=FLAGS.num_checkpoints
+            )
 
             if FLAGS.train_or_restore == "R":
                 # Load cnn model
                 logger.info("✔︎ Loading model...")
                 print(checkpoint_dir)
                 # checkpoint_file = tf.train.latest_checkpoint(checkpoint_dir)
-                logger.info(FLAGS.checkpoint_model_path)
+                checkpoint_file = "/home/zachary/tmp/1554644075/checkpoints/model-156300"
+                logger.info(checkpoint_file)
                 # Load the saved meta graph and restore variables
-                saver = tf.train.import_meta_graph("{0}.meta".format(FLAGS.checkpoint_model_path))
-                saver.restore(sess, FLAGS.checkpoint_model_path)
+                saver = tf.train.import_meta_graph("{0}.meta".format(checkpoint_file))
+                saver.restore(sess, checkpoint_file)
+
+            else:
+                if not os.path.exists(checkpoint_dir):
+                    os.makedirs(checkpoint_dir)
+                sess.run(tf.global_variables_initializer())
+                sess.run(tf.local_variables_initializer())
+
+                # Embedding visualization config
+                config = projector.ProjectorConfig()
+                embedding_conf = config.embeddings.add()
+                embedding_conf.tensor_name = "embedding"
+                embedding_conf.metadata_path = FLAGS.metadata_file
+
+                projector.visualize_embeddings(validation_summary_writer, config)
+
+                # Save the embedding visualization
+                saver.save(sess, os.path.join(out_dir, "embedding", "embedding.ckpt"))
 
             current_step = sess.run(cnn.global_step)
             print("current_step: ", current_step)
 
-            def infer(
+            def validation_step(
                 _x_val_testid, _x_val_gov, _x_val_art, _y_val, writer=None
             ):
                 print("_x_val_gov: ", len(_x_val_gov), _x_val_gov)
@@ -322,6 +368,17 @@ def test(word2vec_path):
                     num_epochs=1,
                     shuffle=False,
                 )
+
+                _eval_counter, _eval_loss = 0, 0.0
+
+                _eval_pre_tk = [0.0] * FLAGS.top_num
+                _eval_rec_tk = [0.0] * FLAGS.top_num
+                _eval_F_tk = [0.0] * FLAGS.top_num
+
+                true_onehot_labels = []
+                predicted_onehot_scores = []
+                predicted_onehot_labels_ts = []
+                predicted_onehot_labels_tk = [[] for _ in range(FLAGS.top_num)]
 
                 valid_count_correct_one = 0
                 valid_count_label_one = 0
@@ -370,6 +427,113 @@ def test(word2vec_path):
                                     feed_dict,
                                 )
 
+                                (
+                                    count_label_one,
+                                    count_label_zero,
+                                    count_correct_one,
+                                    count_correct_zero,
+                                    TFPN,
+                                ) = count_correct_pred(scores, input_y)
+
+                                def _plot_score(
+                                    vec, pred_text, xticks, gov_or_art, testid
+                                ):
+                                    _axis_fontsize = 13
+                                    fig = plt.figure(figsize=(14, 10))
+                                    plt.yticks([])
+                                    plt.xticks(
+                                        range(0, len(vec)),
+                                        xticks,
+                                        fontsize=_axis_fontsize,
+                                    )
+                                    fig.add_subplot(1, 1, 1)
+                                    plt.figtext(
+                                        x=0.13,
+                                        y=0.54,
+                                        s="Prediction: {}".format(pred_text),
+                                        fontsize=15,
+                                        fontname="sans-serif",
+                                    )
+                                    img = plt.imshow([vec], vmin=0, vmax=1)
+                                    # plt.show()
+                                    plt.savefig(testid[0] + "_" + gov_or_art + ".png")
+
+                                raw_gov_tokens = val_data.raw_tokens_gov[
+                                    valid_step_count
+                                ]
+                                raw_art_tokens = val_data.raw_tokens_art[
+                                    valid_step_count
+                                ]
+
+                                print(x_val_testid)
+                                print(grad_cam_c_gov[0], len(grad_cam_c_gov[0]))
+                                print(grad_cam_c_art[0], len(grad_cam_c_art[0]))
+                                print(raw_gov_tokens)
+                                print(raw_art_tokens)
+
+                                if TFPN == "TRUE POSITIVE":
+                                    pkl_target = dict()
+                                    pkl_target["x_val_testid"] = x_val_testid
+                                    pkl_target["grad_cam_c_gov"] = grad_cam_c_gov[0]
+                                    pkl_target["grad_cam_c_art"] = grad_cam_c_art[0]
+                                    pkl_target["raw_gov_tokens"] = raw_gov_tokens
+                                    pkl_target["raw_art_tokens"] = raw_art_tokens
+                                    with open(
+                                        x_val_testid[0] + "_grad_cams" + ".pkl",
+                                        "wb",
+                                    ) as handle:
+                                        pickle.dump(
+                                            pkl_target, handle, protocol=pickle.HIGHEST_PROTOCOL
+                                        )
+
+                                # _plot_score(grad_cam_c[0], pred_text="POSITVE", xticks=raw_gov_tokens, gov_or_art="gov", testid=x_val_testid)
+                                # _plot_score(grad_cam_c[0], pred_text="POSITVE", xticks=raw_art_tokens, gov_or_art="art", testid=x_val_testid)
+
+                                valid_count_correct_one += count_correct_one
+                                valid_count_label_one += count_label_one
+
+                                valid_count_correct_zero += count_correct_zero
+                                valid_count_label_zero += count_label_zero
+
+                                print(
+                                    "[VALID] num_correct_answer is {} out of {}".format(
+                                        count_correct_one, count_label_one
+                                    )
+                                )
+                                print(
+                                    "[VALID] num_correct_answer is {} out of {}".format(
+                                        count_correct_zero, count_label_zero
+                                    )
+                                )
+
+                                # Prepare for calculating metrics
+                                for i in y_batch_val:
+                                    true_onehot_labels.append(i)
+                                for j in scores:
+                                    predicted_onehot_scores.append(j)
+
+                                # Predict by threshold
+                                batch_predicted_onehot_labels_ts = feed.get_onehot_label_threshold(
+                                    scores=scores, threshold=FLAGS.threshold
+                                )
+
+                                for k in batch_predicted_onehot_labels_ts:
+                                    predicted_onehot_labels_ts.append(k)
+
+                                # Predict by topK
+                                for _top_num in range(FLAGS.top_num):
+                                    batch_predicted_onehot_labels_tk = feed.get_onehot_label_topk(
+                                        scores=scores, top_num=_top_num + 1
+                                    )
+
+                                    for i in batch_predicted_onehot_labels_tk:
+                                        predicted_onehot_labels_tk[_top_num].append(i)
+
+                                _eval_loss = _eval_loss + cur_loss
+                                _eval_counter = _eval_counter + 1
+
+                                if writer:
+                                    writer.add_summary(summaries, step)
                             else:
                                 pass
 
@@ -384,31 +548,113 @@ def test(word2vec_path):
                     "out of {}".format(valid_count_correct_zero, valid_count_label_zero)
                 )
 
+                _eval_loss = float(_eval_loss / _eval_counter)
+
+                # Calculate Precision & Recall & F1 (threshold & topK)
+                _eval_pre_ts = precision_score(
+                    y_true=np.array(true_onehot_labels),
+                    y_pred=np.array(predicted_onehot_labels_ts),
+                    average="micro",
+                )
+                _eval_rec_ts = recall_score(
+                    y_true=np.array(true_onehot_labels),
+                    y_pred=np.array(predicted_onehot_labels_ts),
+                    average="micro",
+                )
+                _eval_F_ts = f1_score(
+                    y_true=np.array(true_onehot_labels),
+                    y_pred=np.array(predicted_onehot_labels_ts),
+                    average="micro",
+                )
+
+                for _top_num in range(FLAGS.top_num):
+                    _eval_pre_tk[_top_num] = precision_score(
+                        y_true=np.array(true_onehot_labels),
+                        y_pred=np.array(predicted_onehot_labels_tk[_top_num]),
+                        average="micro",
+                    )
+                    _eval_rec_tk[_top_num] = recall_score(
+                        y_true=np.array(true_onehot_labels),
+                        y_pred=np.array(predicted_onehot_labels_tk[_top_num]),
+                        average="micro",
+                    )
+                    _eval_F_tk[_top_num] = f1_score(
+                        y_true=np.array(true_onehot_labels),
+                        y_pred=np.array(predicted_onehot_labels_tk[_top_num]),
+                        average="micro",
+                    )
+
+                # Calculate the average AUC
+                _eval_auc = roc_auc_score(
+                    y_true=np.array(true_onehot_labels),
+                    y_score=np.array(predicted_onehot_scores),
+                    average="micro",
+                )
+                # Calculate the average PR
+                _eval_prc = average_precision_score(
+                    y_true=np.array(true_onehot_labels),
+                    y_score=np.array(predicted_onehot_scores),
+                    average="micro",
+                )
+
                 return (
-                    scores,
-                    grad_cam_c_gov,
-                    grad_cam_c_art,
+                    _eval_loss,
+                    _eval_auc,
+                    _eval_prc,
+                    _eval_rec_ts,
+                    _eval_pre_ts,
+                    _eval_F_ts,
+                    _eval_rec_tk,
+                    _eval_pre_tk,
+                    _eval_F_tk,
                 )
 
             logger.info("\nEvaluation:")
-
             (
-                scores,
-                grad_cam_c_gov,
-                grad_cam_c_art,
-            ) = infer(
+                eval_loss,
+                eval_auc,
+                eval_prc,
+                eval_rec_ts,
+                eval_pre_ts,
+                eval_F_ts,
+                eval_rec_tk,
+                eval_pre_tk,
+                eval_F_tk,
+            ) = validation_step(
                 x_val_testid,
                 x_val_gov,
                 x_val_art,
                 y_val,
-                writer=None,
+                writer=validation_summary_writer,
             )
 
-            print(scores)
-            print(grad_cam_c_art, len(grad_cam_c_art))
+            logger.info(
+                "All Validation set: Loss {0:g} | AUC {1:g} | AUPRC {2:g}".format(
+                    eval_loss, eval_auc, eval_prc
+                )
+            )
+
+            # Predict by threshold
+            logger.info(
+                "☛ Predict by threshold: Precision {0:g}, Recall {1:g}, "
+                "F {2:g}".format(eval_pre_ts, eval_rec_ts, eval_F_ts)
+            )
+
+            # Predict by topK
+            logger.info("☛ Predict by topK:")
+            for top_num in range(FLAGS.top_num):
+                logger.info(
+                    "Top{0}: Precision {1:g}, Recall {2:g}, F {3:g}".format(
+                        top_num + 1,
+                        eval_pre_tk[top_num],
+                        eval_rec_tk[top_num],
+                        eval_F_tk[top_num],
+                    )
+                )
+            # best_saver.handle(eval_prc, sess, current_step)
 
     logger.info("✔︎ Done.")
 
 
 if __name__ == "__main__":
-    test(word2vec_path=constants.google_w2v_path)
+    test(word2vec_path="/home/zachary/tmp/GoogleNews-vectors-negative300.bin")
