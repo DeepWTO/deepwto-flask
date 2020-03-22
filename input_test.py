@@ -51,22 +51,38 @@ if __name__ == "__main__":
     #
     #     prev = curr
     #     prev_key = key
-    fp = 'article_dict_tokenized.pkl'
-    data = load_pickle(fp)
+
+    # fp = 'article_dict_tokenized.pkl'
+    # data = load_pickle(fp)
+    # print(data.keys())
+    # print(len(data.keys()))
+    # prev = None
+    # prev_key = None
+    #
+    # for key in data.keys():
+    #     curr = data[key]
+    #     print(key)
+    #     print(curr)
+    #
+    #     if prev == curr:
+    #         print("duplicated at", prev_key, key)
+    #
+    #     prev = curr
+    #     prev_key = key
+
+    # facts_pkl = 'factual_dict_tokenized.pkl'
+    # arts_pkl = 'article_dict_tokenized.pkl'
+    # facts = load_pickle(facts_pkl)
+    # arts = load_pickle(arts_pkl)
+    #
+    # data_dicts = dict()
+    # data_dicts["gov"] = facts
+    # data_dicts["art"] = arts
+    #
+    # pickle_object(data_dicts, "data.pkl")
+
+    data = load_pickle("data.pkl")
     print(data.keys())
-    print(len(data.keys()))
-    prev = None
-    prev_key = None
-
-    for key in data.keys():
-        curr = data[key]
-        print(key)
-        print(curr)
-
-        if prev == curr:
-            print("duplicated at", prev_key, key)
-
-        prev = curr
-        prev_key = key
-
+    print(len(data["gov"].keys()))
+    print(len(data["art"].keys()))
     pass
