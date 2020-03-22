@@ -7,6 +7,8 @@ from tflearn.data_utils import pad_sequences
 
 
 def data_word2vec_one_label(input_file,
+                            ds,
+                            art,
                             word2vec_model):
     """
     Create the research data token index based on the word2vec model file.
@@ -47,10 +49,12 @@ def data_word2vec_one_label(input_file,
     total_line = 0
 
     data = utils.load_pickle(input_file)
-    test_id = data['testid']
-    features_content_gov = data['gov']
-    features_content_art = data['art']
-    label = data['label']
+    test_id = str(ds) + "_" + art  # data['testid']
+    features_content_gov = data['gov'][ds]
+    print(features_content_gov)
+    features_content_art = data['art'][art]
+    print(features_content_art)
+    label = [1]  # data['label']
 
     test_id_list.append(test_id)
     content_index_list_gov.append(_token_to_index(
@@ -106,6 +110,8 @@ def data_word2vec_one_label(input_file,
 
 
 def load_data_and_labels_one_label(data_file,
+                                   ds,
+                                   art,
                                    word2vec_path,
                                    use_pretrain=True):
     """
@@ -144,6 +150,8 @@ def load_data_and_labels_one_label(data_file,
 
     # Load data from files and split by words
     data = data_word2vec_one_label(input_file=data_file,
+                                   ds=ds,
+                                   art=art,
                                    word2vec_model=model)
     return data
 

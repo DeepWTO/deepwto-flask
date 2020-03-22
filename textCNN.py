@@ -114,7 +114,7 @@ logger.info(
 )
 
 
-def test(word2vec_path):
+def test(word2vec_path, data, ds, art):
     """Training TextCNN-one-label model."""
 
     # Load sentences, labels, and training parameters
@@ -122,7 +122,9 @@ def test(word2vec_path):
 
     logger.info("✔︎ Validation data processing...")
     val_data = feed.load_data_and_labels_one_label(
-        FLAGS.validation_data_file,
+        data,
+        ds,
+        art,
         word2vec_path=word2vec_path,
         use_pretrain=True
     )
@@ -147,7 +149,7 @@ def test(word2vec_path):
     x_val_testid = val_data.testid
 
     print("x_val_gov: ", len(x_val_gov))
-    print("x_val_testid", len(x_val_testid))
+    print("x_val_testid", len(x_val_testid), x_val_testid[0])
     print("x_val_art: ", len(x_val_art))
 
     # Build vocabulary
@@ -264,7 +266,11 @@ def test(word2vec_path):
             )
 
             print(data)
+            print(len(data[1][0]), len(data[2][0]))
 
 
 if __name__ == "__main__":
-    test(word2vec_path=constants.google_w2v_path)
+    test(word2vec_path=constants.google_w2v_path,
+         data="data.pkl",
+         ds=2,
+         art="Article IV")
