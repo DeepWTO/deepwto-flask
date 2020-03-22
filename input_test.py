@@ -1,7 +1,7 @@
 import json
 import pickle
 
-input_file = "/home/zachary/test_data.json"
+input_file = "/Users/zachary/Downloads/test_data.json"
 
 
 def pickle_object(python_obj, pickle_path):
@@ -16,21 +16,57 @@ def load_pickle(pickle_path):
     return python_obj
 
 
+factual_dict_tokenized = dict()
+article_dict_tokenized = dict()
+
 # with open(input_file) as fin:
-#     # print(fin.keys())
 #     for each_line in fin:
 #         data = json.loads(each_line)
-#         # print(data.keys())
-#         # print(data['testid'])
-#         if data['testid'] == '139_[Article III:4]' :
-#             print('yes')
-#             pickle_object(data, '139_[Article III:4].pkl')
-#             break
+#         ds_art = data['testid']
+#         ds = int(ds_art.split("_")[0])
+#         art = ds_art.split("_")[1][1:-1]
+#         print(ds, art)
+#         print(article_dict_tokenized.keys())
+#
+#         if ds not in article_dict_tokenized.keys():
+#             article_dict_tokenized[art] = data['art']
+#         else:
+#             pass
+#
+#     pickle_object(article_dict_tokenized, "article_dict_tokenized.pkl")
 
 if __name__ == "__main__":
-    fp = '/tmp/pycharm_project_271/139_[Article III:4].pkl'
+    # fp = 'factual_dict_tokenized.pkl'
+    # data = load_pickle(fp)
+    # print(data.keys())
+    # prev = None
+    # prev_key = None
+    #
+    # for key in data.keys():
+    #     curr = data[key]
+    #     print(key)
+    #
+    #     if prev == curr:
+    #         print("duplicated at", prev_key, key)
+    #
+    #     prev = curr
+    #     prev_key = key
+    fp = 'article_dict_tokenized.pkl'
     data = load_pickle(fp)
     print(data.keys())
-    print(data['gov'])
-    print(data['art'])
+    print(len(data.keys()))
+    prev = None
+    prev_key = None
+
+    for key in data.keys():
+        curr = data[key]
+        print(key)
+        print(curr)
+
+        if prev == curr:
+            print("duplicated at", prev_key, key)
+
+        prev = curr
+        prev_key = key
+
     pass
