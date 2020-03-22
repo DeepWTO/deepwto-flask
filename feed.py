@@ -46,7 +46,10 @@ def data_word2vec_one_label(input_file,
 
         for each_line in fin:
             data = json.loads(each_line)
-            test_id = data['testid']
+            ds_art = data['testid']
+            ds = ds_art.split("_")[0]
+            art = ds_art.split("_")[1][1:-1]
+            test_id = ds + "_" + art
             features_content_gov = data['gov']
             features_content_art = data['art']
             label = data['label']
@@ -270,6 +273,7 @@ def batch_iter(data, batch_size, num_epochs, shuffle=True):
             start_index = batch_num * batch_size
             end_index = min((batch_num + 1) * batch_size, data_size)
             yield shuffled_data[start_index:end_index]
+
 
 def get_onehot_label_threshold(scores, threshold=0.5):
     """

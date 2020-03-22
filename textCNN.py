@@ -5,12 +5,22 @@ __modify__ = "Zachary"
 import sys
 import time
 import logging
+import pickle
 import tensorflow as tf
 
 from model import OneLabelTextCNN
 import feed
 import utils
 import constants
+
+from tqdm import tqdm
+
+
+def pickle_object(python_obj, pickle_path):
+    with open(pickle_path, "wb") as f:
+        pickle.dump(python_obj, f)
+    return True
+
 
 TRAIN_OR_RESTORE = "R"
 
@@ -217,7 +227,9 @@ def test(word2vec_path, data):
                 )
 
                 valid_step_count = 0
-                for batch_validation in batches_validation:
+
+                result_dict = dict()
+                for batch_validation in tqdm(batches_validation):
                     print(valid_step_count)
 
                     x_val_testid, x_batch_val_gov, x_batch_val_art, y_batch_val = zip(
@@ -252,8 +264,21 @@ def test(word2vec_path, data):
                         ],
                         feed_dict,
                     )
+                    # print(x_val_testid, scores, grad_cam_c_gov, grad_cam_c_art, input_y)
+                    result_dict_id = x_val_testid[0]
+                    result_dict_score = scores[0][0]
+                    result_dict_grad_cam_gov = grad_cam_c_gov[0]
+                    result_dict_grad_cam_art = grad_cam_c_art[0]
+                    result_dict_input_y = input_y[0][0]
+                    print(result_dict_id, result_dict_score, result_dict_grad_cam_gov, result_dict_grad_cam_art, result_dict_input_y, "test")
+                    result_dict[result_dict_id] = dict()
+                    result_dict[result_dict_id]["score"] = result_dict_score
+                    result_dict[result_dict_id]["grad_cam_gov"] = result_dict_grad_cam_gov
+                    result_dict[result_dict_id]["grad_cam_art"] = result_dict_grad_cam_art
+                    result_dict[result_dict_id]["input_label"] = result_dict_input_y
+                    result_dict[result_dict_id]["split"] = "train"
 
-                    print(x_val_testid, scores, grad_cam_c_gov, grad_cam_c_art)
+                pickle_object(result_dict, 'result_dict_train.pkl')
 
             infer(
                 x_val_testid,
@@ -266,4 +291,4 @@ def test(word2vec_path, data):
 
 if __name__ == "__main__":
     test(word2vec_path=constants.google_w2v_path,
-         data="/Users/zachary/Downloads/test_data.json")
+         data="/Users/zachary/Downloads/train_data.json")

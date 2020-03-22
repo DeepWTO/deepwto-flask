@@ -81,8 +81,15 @@ if __name__ == "__main__":
     #
     # pickle_object(data_dicts, "data.pkl")
 
-    data = load_pickle("data.pkl")
-    print(data.keys())
-    print(len(data["gov"].keys()))
-    print(len(data["art"].keys()))
+    # data = load_pickle("data.pkl")
+    # print(data.keys())
+    # print(len(data["gov"].keys()))
+    # print(len(data["art"].keys()))
+    result_dict_test = load_pickle("result_dict_test.pkl")
+    print(len(result_dict_test.keys()))
+    keys = list(result_dict_test.keys())
+    example_instance =result_dict_test[keys[0]]
+    print(keys[0])
+    print(example_instance)
+    print(example_instance['grad_cam_art'].shape)
     pass
