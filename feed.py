@@ -1,5 +1,6 @@
 import os
 import utils
+import json
 import numpy as np
 import gensim.models.keyedvectors as word2vec
 
@@ -7,8 +8,6 @@ from tflearn.data_utils import pad_sequences
 
 
 def data_word2vec_one_label(input_file,
-                            ds,
-                            art,
                             word2vec_model):
     """
     Create the research data token index based on the word2vec model file.
@@ -33,42 +32,42 @@ def data_word2vec_one_label(input_file,
             result.append(word2id)
         return result
 
-    # if not input_file.endswith('.json'):
-    #     raise IOError("✘ The research data is not a json file. "
-    #                   "Please preprocess the research data into the "
-    #                   "json file.")
 
-    raw_tokens_list_gov = []
-    raw_tokens_list_art = []
-    test_id_list = []
-    content_index_list_gov = []
-    content_index_list_art = []
-    # labels_list = []
-    onehot_labels_list = []
-    labels_num_list = []
-    total_line = 0
+    with open(input_file) as fin:
+        raw_tokens_list_gov = []
+        raw_tokens_list_art = []
+        test_id_list = []
+        content_index_list_gov = []
+        content_index_list_art = []
+        # labels_list = []
+        onehot_labels_list = []
+        labels_num_list = []
+        total_line = 0
 
-    data = utils.load_pickle(input_file)
-    test_id = str(ds) + "_" + art  # data['testid']
-    features_content_gov = data['gov'][ds]
-    print(features_content_gov)
-    features_content_art = data['art'][art]
-    print(features_content_art)
-    label = [1]  # data['label']
+        for each_line in fin:
+            data = json.loads(each_line)
+            test_id = data['testid']
+            features_content_gov = data['gov']
+            features_content_art = data['art']
+            label = data['label']
 
-    test_id_list.append(test_id)
-    content_index_list_gov.append(_token_to_index(
-        features_content_gov))
-    content_index_list_art.append(_token_to_index(
-        features_content_art))
+            test_id_list.append(test_id)
+            content_index_list_gov.append(_token_to_index(
+                features_content_gov))
+            content_index_list_art.append(_token_to_index(
+                features_content_art))
 
-    raw_tokens_list_gov.append(features_content_gov)
-    raw_tokens_list_art.append(features_content_art)
+            raw_tokens_list_gov.append(features_content_gov)
+            raw_tokens_list_art.append(features_content_art)
 
-    onehot_labels_list.append(label)
-    labels_num = 1
-    labels_num_list.append(labels_num)
-    total_line += 1
+            # labels_list.append(label)
+            # onehot_labels_list.append(_create_onehot_labels(labels_index,
+            #                                                 num_labels))
+            onehot_labels_list.append(label)
+            labels_num = 1
+            labels_num_list.append(labels_num)
+            total_line += 1
+
 
     class _Data:
         def __init__(self):
@@ -98,6 +97,10 @@ def data_word2vec_one_label(input_file,
         def tokenindex_art(self):
             return content_index_list_art
 
+        # @property
+        # def labels(self):
+        #     return labels_list
+
         @property
         def onehot_labels(self):
             return onehot_labels_list
@@ -110,8 +113,6 @@ def data_word2vec_one_label(input_file,
 
 
 def load_data_and_labels_one_label(data_file,
-                                   ds,
-                                   art,
                                    word2vec_path,
                                    use_pretrain=True):
     """
@@ -150,8 +151,6 @@ def load_data_and_labels_one_label(data_file,
 
     # Load data from files and split by words
     data = data_word2vec_one_label(input_file=data_file,
-                                   ds=ds,
-                                   art=art,
                                    word2vec_model=model)
     return data
 
