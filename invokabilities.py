@@ -15,6 +15,30 @@ def load_pickle(pickle_path):
         python_obj = pickle.load(f)
     return python_obj
 
+def generate_sorted_dict_for_invokabilities(ds=18, invokability_dict_pkl="invokability_dict_test.pkl"):
+    invokability_dict = load_pickle(invokability_dict_pkl)
+    # print(invokability_dict_test.keys())
+    # print(invokability_dict_test[ds].keys())
+    print(invokability_dict[ds])
+    # print(len(invokability_dict_test[ds].keys()))
+
+    # sorted = {k: v for k, v in sorted(invokability_dict_test[ds].items(), key=lambda item: item[1][0])}
+    sorted_list = sorted(invokability_dict[ds].items(), key=lambda item: item[1][0], reverse=True)
+    # print(list(sorted))
+    print(sorted_list)
+
+    sorted_dicts = []
+    for item in sorted_list:
+        temp_dict = dict()
+        temp_dict["name"] = item[0]
+        temp_dict["pred"] = item[1][0]
+        temp_dict["label"] = item[1][1]
+        sorted_dicts.append(temp_dict)
+
+    print(sorted_dicts)
+    # dump = json.dumps(str(sorted_dicts))
+    # dump.replace("\'", '"')
+    return sorted_dicts
 
 # factual_dict_tokenized = dict()
 # article_dict_tokenized = dict()
@@ -108,35 +132,6 @@ if __name__ == "__main__":
     #         invokability_dict_test[ds][art] = (result_dict_test[key]["score"], result_dict_test[key]["input_label"])
     #
     # pickle_object(invokability_dict_test, "invokability_dict_train.pkl")
-
-
-    def generate_sorted_dict_for_invokabilities(ds=18, invokability_dict_pkl="invokability_dict_test.pkl"):
-        invokability_dict = load_pickle(invokability_dict_pkl)
-        # print(invokability_dict_test.keys())
-        # print(invokability_dict_test[ds].keys())
-        print(invokability_dict[ds])
-        # print(len(invokability_dict_test[ds].keys()))
-
-        # sorted = {k: v for k, v in sorted(invokability_dict_test[ds].items(), key=lambda item: item[1][0])}
-        sorted_list = sorted(invokability_dict[ds].items(), key=lambda item: item[1][0], reverse=True)
-        # print(list(sorted))
-        print(sorted_list)
-
-        sorted_dicts = []
-        for item in sorted_list:
-            temp_dict = dict()
-            temp_dict["name"] = item[0]
-            temp_dict["pred"] = item[1][0]
-            temp_dict["label"] = item[1][1]
-            sorted_dicts.append(temp_dict)
-
-        print(sorted_dicts)
-        dump = json.dumps(str(sorted_dicts))
-        print(dump)
-
-        class mydict(dict):
-            def __str__(self):
-                return json.dumps(self)
 
     generate_sorted_dict_for_invokabilities(ds=2, invokability_dict_pkl="invokability_dict_test.pkl")
     # invokability_dict_train = load_pickle("invokability_dict_train.pkl")
