@@ -4,7 +4,12 @@ import requests
 import json
 
 from invokabilities import generate_sorted_dict_for_invokabilities
+import pickle
 
+def load_pickle(pickle_path):
+    with open(pickle_path, "rb") as f:
+        python_obj = pickle.load(f)
+    return python_obj
 
 available_ds = [2, 18, 22, 31, 34, 46, 56, 58, 60, 62, 67, 68, 69, 75, 76,
                 87, 90, 98, 103, 108, 121, 122, 135, 136, 139, 141, 146, 152,
@@ -39,7 +44,7 @@ class AppSyncClient:
         )
         return response
 
-    def create_invokabilities(self, ds: int, split: str, scores: str, version: str = "1.0.0"):
+    def create_invokabilities(self, ds: int, split: str, scores: List[dict], version: str = "1.0.0"):
         ds_split = '"{}_{}"'.format(str(ds), split)
         version = '"{}"'.format(version)
         scores = '"{}"'.format(scores)
@@ -64,12 +69,48 @@ class AppSyncClient:
         res = self.execute_gql(query).json()
         return res["data"]["createInvokabilities"]["ds_split"]
 
+    def create_gov_tokens(self, ds: int, tokens: List[str], version: str = "1.0.0"):
+        ds = '{}'.format(ds)
+        version = '"{}"'.format(version)
+        tokens = '{}'.format(tokens)
+        query = """
+                   mutation CreateGovTokenized {{
+                       createGovTokenized(input: 
+                           {{
+                           ds: {0},
+                           version: {1},
+                           tokens: {2}
+                           }}
+                           ) {{
+                                  ds
+                                  version
+                                  tokens
+                               }}
+                           }}
+                   """.format(
+            ds, version, tokens
+        )
+
+        res = self.execute_gql(query).json()
+        print(res)
+        return res["data"]["createGovTokenized"]["ds"]
+
 
 if __name__ == "__main__":
     client = AppSyncClient(api_key="da2-ojotqixqrff5tdaarm7zpn5cfa",
                            endpoint_url="https://jpnk5vptq5djzmshkevn57a72y.appsync-api.us-east-1.amazonaws.com/graphql")
 
-    for ds in available_ds:
-        scores = generate_sorted_dict_for_invokabilities(ds=ds, invokability_dict_pkl="invokability_dict_train.pkl")
-        res = client.create_invokabilities(ds=ds, split="train", scores=scores )
-        print(res)
+    # for ds in available_ds:
+    #     scores = generate_sorted_dict_for_invokabilities(ds=ds, invokability_dict_pkl="invokability_dict_train.pkl")
+    #     res = client.create_invokabilities(ds=ds, split="train", scores=scores )
+    #     print(res)
+
+    fp = 'factual_dict_tokenized.pkl'
+    data = load_pickle(fp)
+    print(data[2])
+    # tokens = data[2]
+    tokens = json.dumps(data[2])
+
+    print(tokens)
+    res = client.create_gov_tokens(ds=2, tokens=tokens)
+    print(res)
