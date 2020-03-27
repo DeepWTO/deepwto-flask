@@ -3,6 +3,8 @@ from typing import Union, List
 import requests
 import json
 
+import numpy as np
+
 from invokabilities import generate_sorted_dict_for_invokabilities
 import pickle
 
@@ -95,6 +97,33 @@ class AppSyncClient:
         print(res)
         return res["data"]["createGovTokenized"]["ds"]
 
+    def create_gov_gradcam(self, ds_art: str, weights: List[float], version: str = "1.0.0"):
+        print(weights)
+        ds_art = '"{}"'.format(ds_art)
+        version = '"{}"'.format(version)
+        weights = '{}'.format(weights)
+        query = """
+                   mutation CreateGovGradCam {{
+                       createGovGradCAM(input: 
+                           {{
+                           ds_art: {0}, 
+                           version: {1},
+                           weights: {2}
+                           }}
+                           ) {{
+                                  ds_art
+                                  version
+                                  weights
+                               }}
+                           }}
+                   """.format(
+            ds_art, version, weights
+        )
+
+        res = self.execute_gql(query).json()
+        print(res)
+        return res["data"]["createGovGradCAM"]
+
 
 if __name__ == "__main__":
     client = AppSyncClient(api_key="da2-ojotqixqrff5tdaarm7zpn5cfa",
@@ -105,12 +134,19 @@ if __name__ == "__main__":
     #     res = client.create_invokabilities(ds=ds, split="train", scores=scores )
     #     print(res)
 
-    fp = 'factual_dict_tokenized.pkl'
-    data = load_pickle(fp)
-    print(data[2])
-    # tokens = data[2]
-    tokens = json.dumps(data[2])
+    # fp = 'factual_dict_tokenized.pkl'
+    # data = load_pickle(fp)
+    # for ds in available_ds:
+    #     tokens = json.dumps(data[ds])
+    #     res = client.create_gov_tokens(ds=ds, tokens=tokens)
+    #     print(res)
 
-    print(tokens)
-    res = client.create_gov_tokens(ds=2, tokens=tokens)
-    print(res)
+    fp = 'result_dict_test.pkl'
+    data = load_pickle(fp)
+    keys = list(data.keys())
+
+    for key in keys:
+        print(key)
+        grad_cam_gov = list(data[key]['grad_cam_gov'])
+        res = client.create_gov_gradcam(ds_art=key, weights=grad_cam_gov)
+        print(res)
